@@ -1,6 +1,7 @@
 #include <cstdio>
 #include <cstring>
 #include <string_view>
+#include <vector>
 #include "json.hpp"
 
 static int main_ret = 0;
@@ -30,6 +31,7 @@ inline void EXPECT_EQ_INT(int expect, int actual) {
 #define EXPECT_EQ_DOUBLE(expect, actual) EXPECT_EQ_BASE((expect) == (actual), expect, actual, "%lf")
 #define EXPECT_EQ_STRING(expect, actual) EXPECT_EQ_BASE((expect) == (actual), std::string(expect.begin(), expect.end()).c_str(), std::string(actual.begin(), actual.end()).c_str(), "%s")
 #define TEXT(quote) (u8"\"" quote u8"\"")
+#define ARRAY(quote) (u8"[" quote u8"]")
 
 #define TEST_NUMBER(expect, json)                     \
     do                                                \
@@ -51,12 +53,61 @@ inline void EXPECT_EQ_INT(int expect, int actual) {
 //        EXPECT_EQ_STRING(std::u8string(expect), v.get_string()); \
 //    } while (0)
 //
+std::string ARRAY_TO_STRING(std::vector<JsonValue>& array)
+{
+    std::string temp;
+    temp.push_back('[');
+    for(auto &i: array)
+    {
+        switch(i.get_type())
+        {
+        case JSON_NULL:
+            temp += "null";
+            break;
+        case JSON_FALSE:
+            temp += "false";
+            break;
+        case JSON_TRUE:
+            temp += "true";
+            break;
+        case JSON_NUMBER:
+            temp += std::to_string(i.get_number());
+            break;
+        case JSON_STRING:
+            temp += '\"' + std::string(i.get_string().begin(), i.get_string().end()) + '\"';
+            break;
+        case JSON_ARRAY:
+            temp += ARRAY_TO_STRING(i.get_array());
+            break;
+        default:
+            break;
+        }
+        temp += ", ";
+    }
+    temp.pop_back();
+    temp.push_back(']');
+    return temp;
+}
+inline void EXPECT_EQ_ARRAY(std::vector<JsonValue> &expect, std::vector<JsonValue> &actual)
+{
+    std::string expect_str(ARRAY_TO_STRING(expect)), actual_str(ARRAY_TO_STRING(actual));
+    EXPECT_EQ_BASE((expect) == (actual), expect_str.c_str(), actual_str.c_str(), "%s");
+}
+
 inline void TEST_STRING(std::u8string_view expect, std::u8string_view json)
 {
     JsonValue v;
     EXPECT_EQ_INT(PARSE_OK, json_parse(v, json));
     EXPECT_EQ_INT(JSON_STRING, v.get_type());
     EXPECT_EQ_STRING(std::u8string(expect), v.get_string());
+}
+
+inline void TEST_ARRAY(std::vector<JsonValue> expect, std::u8string_view json)
+{
+    JsonValue v;
+    EXPECT_EQ_INT(PARSE_OK, json_parse(v, json));
+    EXPECT_EQ_INT(JSON_ARRAY, v.get_type());
+    EXPECT_EQ_ARRAY(expect, v.get_array());
 }
 
 #define TEST_ERROR(error, json)                    \
@@ -136,8 +187,9 @@ static void test_parse_number() {
     TEST_NUMBER(1.234E+10, u8"1.234E+10");
     TEST_NUMBER(1.234E-10, u8"1.234E-10");
 }
+
 static void test_parse_string() {
-    //Use TEXT() marco add quotations automatically
+    //Use TEXT() marco add "" automatically
     TEST_STRING(u8"", TEXT(u8""));
     TEST_STRING(u8"Text", TEXT(u8"Text"));
     TEST_STRING(u8"\"\"", TEXT(u8"\\\"\\\""));   //\"\" -> ""
@@ -155,6 +207,13 @@ static void test_parse_string() {
     TEST_STRING(u8"中\0文"sv, TEXT(u8"\\u4e2d\\u0000\\u6587")); //include '\0'
 }
 
+static void test_parse_array() {
+    TEST_ARRAY(std::vector<JsonValue>{}, u8"[]");
+    TEST_ARRAY(std::vector<JsonValue>{JSON_NULL, JSON_FALSE, JSON_TRUE, 1.0, u8"Text"}, u8"[null, false, true, 1.0, \"Text\"]");
+    TEST_ARRAY(std::vector<JsonValue>{std::vector<JsonValue>{}, std::vector<JsonValue>{0.0}, std::vector<JsonValue>{0.0, 1.0}},
+               u8"[ [ ] , [ 0 ] , [ 0 , 1 ] ]");
+}
+
 static void test_parse() {
     test_parse_error();
     test_parse_null();
@@ -162,6 +221,7 @@ static void test_parse() {
     test_parse_false();
     test_parse_number();
     test_parse_string();
+    test_parse_array();
 }
 
 int main() {
