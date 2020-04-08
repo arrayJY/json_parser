@@ -41,35 +41,15 @@ inline void EXPECT_EQ_INT(int expect, int actual) {
         EXPECT_EQ_DOUBLE(expect, v.get_number()); \
     } while (0)
 
+
+std::string VALUE_TO_STRING(JsonValue &v);
 std::string ARRAY_TO_STRING(std::vector<JsonValue>& array)
 {
     std::string temp;
     temp.push_back('[');
     for(auto i = array.begin(); i != array.end(); i++)
     {
-        switch(i->get_type())
-        {
-        case JSON_NULL:
-            temp += "null";
-            break;
-        case JSON_FALSE:
-            temp += "false";
-            break;
-        case JSON_TRUE:
-            temp += "true";
-            break;
-        case JSON_NUMBER:
-            temp += std::to_string(i->get_number());
-            break;
-        case JSON_STRING:
-            temp += '\"' + std::string(i->get_string().begin(), i->get_string().end()) + '\"';
-            break;
-        case JSON_ARRAY:
-            temp += ARRAY_TO_STRING(i->get_array());
-            break;
-        default:
-            break;
-        }
+        temp += VALUE_TO_STRING(*i);
         temp += ", ";
     }
     temp = temp.substr(0, temp.length() - 2);
@@ -77,9 +57,53 @@ std::string ARRAY_TO_STRING(std::vector<JsonValue>& array)
     return temp;
 }
 
+std::string OBJECT_TO_STRING(std::map<std::u8string, JsonValue> object)
+{
+    std::string r;
+    r += "{";
+    for (auto &i : object)
+    {
+        r += "\"" + std::string(i.first.begin(), i.first.end()) + "\"";
+        r += " : ";
+        r += VALUE_TO_STRING(i.second);
+        r += ", ";
+    }
+    r = r.substr(0, r.length() - 2);
+    r += "}";
+    return r;
+}
+std::string VALUE_TO_STRING(JsonValue &v)
+{
+    switch (v.get_type())
+    {
+    case JSON_NULL:
+        return "null";
+    case JSON_FALSE:
+        return "false";
+    case JSON_TRUE:
+        return "true";
+    case JSON_NUMBER:
+        return std::to_string(v.get_number());
+        break;
+    case JSON_STRING:
+        return '\"' + std::string(v.get_string().begin(), v.get_string().end()) + '\"';
+    case JSON_ARRAY:
+        return ARRAY_TO_STRING(v.get_array());
+    case JSON_OBJECT:
+        return OBJECT_TO_STRING(v.get_object());
+    }
+}
+
 inline void EXPECT_EQ_ARRAY(std::vector<JsonValue> &expect, std::vector<JsonValue> &actual)
 {
     std::string expect_str(ARRAY_TO_STRING(expect)), actual_str(ARRAY_TO_STRING(actual));
+    EXPECT_EQ_BASE((expect) == (actual), expect_str.c_str(), actual_str.c_str(), "%s");
+}
+
+inline void EXPECT_EQ_OBJECT(std::map<std::u8string, JsonValue> &expect,
+                             std::map<std::u8string, JsonValue> &actual)
+{
+    std::string expect_str(OBJECT_TO_STRING(expect)), actual_str(OBJECT_TO_STRING(actual));
     EXPECT_EQ_BASE((expect) == (actual), expect_str.c_str(), actual_str.c_str(), "%s");
 }
 
@@ -96,6 +120,15 @@ inline void TEST_ARRAY(std::vector<JsonValue> expect, std::u8string_view json)
     EXPECT_EQ_INT(PARSE_OK, json_parse(v, json));
     EXPECT_EQ_INT(JSON_ARRAY, v.get_type());
     EXPECT_EQ_ARRAY(expect, v.get_array());
+}
+
+inline void TEST_OBJECT(std::map<std::u8string, JsonValue> expect,
+                        std::u8string_view json)
+{
+    JsonValue v;
+    EXPECT_EQ_INT(PARSE_OK, json_parse(v, json));
+    EXPECT_EQ_INT(JSON_OBJECT, v.get_type());
+    EXPECT_EQ_OBJECT(expect, v.get_object());
 }
 
 #define TEST_ERROR(error, json)                    \
@@ -201,10 +234,33 @@ static void test_parse_string() {
 }
 
 static void test_parse_array() {
-    TEST_ARRAY(std::vector<JsonValue>{}, u8"[]");
-    TEST_ARRAY(std::vector<JsonValue>{JSON_NULL, JSON_FALSE, JSON_TRUE, 1.0, u8"Text"}, u8"[null, false, true, 1.0, \"Text\"]");
-    TEST_ARRAY(std::vector<JsonValue>{std::vector<JsonValue>{}, std::vector<JsonValue>{0.0}, std::vector<JsonValue>{0.0, 1.0}},
+    TEST_ARRAY({}, u8"[]");
+    TEST_ARRAY({JSON_NULL, JSON_FALSE, JSON_TRUE, 1.0, u8"Text"}, u8"[null, false, true, 1.0, \"Text\"]");
+    TEST_ARRAY({std::vector<JsonValue>{}, std::vector<JsonValue>{0.0}, std::vector<JsonValue>{0.0, 1.0}},
                u8"[ [ ] , [ 0 ] , [ 0 , 1 ] ]");
+}
+
+static void test_parse_object() {
+    std::vector<JsonValue> test_array = {JSON_NULL, 1.23, u8"Text"};
+    std::map<std::u8string, JsonValue> test_object{{u8"Object1", test_array}};
+    std::map<std::u8string, JsonValue> expect {
+        {u8"Null", JSON_NULL},
+        {u8"False", JSON_FALSE},
+        {u8"True", JSON_TRUE},
+        {u8"Text", u8"This is a text."},
+        {u8"Array", test_array},
+        {u8"Object", test_object}
+    };
+    std::u8string_view json =
+        u8"{"
+        u8"  \"Null\": null,"
+        u8"  \"False\": false,"
+        u8"  \"True\": true,"
+        u8"  \"Text\": \"This is a text.\","
+        u8"  \"Array\": [null, 1.23, \"Text\"],"
+        u8"  \"Object\": { \"Object1\" : [null, 1.23, \"Text\"] }"
+        u8"}";
+    TEST_OBJECT(expect, json);
 }
 
 static void test_parse() {
@@ -215,6 +271,7 @@ static void test_parse() {
     test_parse_number();
     test_parse_string();
     test_parse_array();
+    test_parse_object();
 }
 
 int main() {
