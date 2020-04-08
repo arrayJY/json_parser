@@ -53,6 +53,8 @@ int json_parse_value(JsonContext& context, JsonValue &value)
             return json_parse_literal(context, value, u8"true", JSON_TRUE);
         case u8'\"':
             return json_parse_string(context, value);
+        case u8'[':
+            return json_parse_array(context, value);
         case u8'\0':
             return PARSE_EXPECT_VALUE;
         default:
@@ -78,7 +80,6 @@ int json_parse_number(JsonContext &c, JsonValue &v)
     {
         auto is_digital = [](const char ch) { return ch >= u8'0' && ch <= u8'9'; };
         auto is_digital_1to9 = [](const char ch) { return ch >= u8'1' && ch <= u8'9'; };
-        auto is_whitespace_or_end = [](const char ch) { return ch == u8' ' || ch == u8'\t' || ch == u8'\n' || ch == u8'\r' || ch == u8'\0'; };
         auto current = c.json.begin();
         /* negative part */
         if(*current == u8'-')
@@ -118,8 +119,10 @@ int json_parse_number(JsonContext &c, JsonValue &v)
                 ++current;
         }
         /* validate end */
+        /*
         if(!is_whitespace_or_end(*current))
             return PARSE_INVALID_VALUE;
+            */
 
         number_length = current - c.json.begin();
     }
@@ -270,6 +273,40 @@ std::u8string json_encode_utf8(unsigned codepoint)
     return temp;
 }
 
+int json_parse_array(JsonContext &c, JsonValue &v)
+{
+    c.json = c.json.substr(1);
+    std::vector<JsonValue> result;
+    int ret = PARSE_OK;
+    json_parse_whitespace(c);
+    while(ret == PARSE_OK && !c.json.starts_with(u8"]"))
+    {
+        if(c.json.length() == 0)
+            return PARSE_INVAID_ARRAY_END;
+        JsonValue value;
+        ret = json_parse_value(c, value);
+        result.push_back(value);
+        json_parse_whitespace(c);
+
+        //handle ','
+        if(c.json.starts_with(u8","))
+        {
+            c.json = c.json.substr(1);
+            json_parse_whitespace(c);
+            if(c.json.starts_with(u8"]"))
+                return PARSE_EXTRA_ARRAY_SEPARATOR;
+        }
+    }
+    //handle ']'
+    c.json = c.json.substr(1);
+    if (ret == PARSE_OK)
+    {
+        v.set_type(JSON_ARRAY);
+        v.set_array(result);
+    }
+    return ret;
+}
+
 JsonType JsonValue::get_type()
 {
     return type;
@@ -287,6 +324,13 @@ std::u8string& JsonValue::get_string()
     return text;
 }
 
+std::vector<JsonValue> &JsonValue::get_array()
+{
+    assert(type == JSON_ARRAY);
+    return array;
+}
+
 void JsonValue::set_number(double n) { number = n; }
 void JsonValue::set_type(JsonType t) { type = t; }
 void JsonValue::set_string(const std::u8string& str) { text = str; }
+void JsonValue::set_array(const std::vector<JsonValue>& v) { array = v; }
