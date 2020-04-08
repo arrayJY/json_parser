@@ -31,7 +31,6 @@ inline void EXPECT_EQ_INT(int expect, int actual) {
 #define EXPECT_EQ_DOUBLE(expect, actual) EXPECT_EQ_BASE((expect) == (actual), expect, actual, "%lf")
 #define EXPECT_EQ_STRING(expect, actual) EXPECT_EQ_BASE((expect) == (actual), std::string(expect.begin(), expect.end()).c_str(), std::string(actual.begin(), actual.end()).c_str(), "%s")
 #define TEXT(quote) (u8"\"" quote u8"\"")
-#define ARRAY(quote) (u8"[" quote u8"]")
 
 #define TEST_NUMBER(expect, json)                     \
     do                                                \
@@ -42,17 +41,7 @@ inline void EXPECT_EQ_INT(int expect, int actual) {
         EXPECT_EQ_DOUBLE(expect, v.get_number()); \
     } while (0)
 
-//#define TEST_STRING(expect, json)                                  \
-//    do                                                                     \
-//    {                                                                      \
-//        JsonValue v;                                                       \
-//        /* 2 quotations and 1 zero-terminal character */                    \
-//        EXPECT_EQ_INT(PARSE_OK, json_parse(v, json));      \
-//        EXPECT_EQ_INT(JSON_STRING, v.get_type());                          \
-//        /* 1 zero-terminal character */                                    \
-//        EXPECT_EQ_STRING(std::u8string(expect), v.get_string()); \
-//    } while (0)
-//
+/*
 std::string ARRAY_TO_STRING(std::vector<JsonValue>& array)
 {
     std::string temp;
@@ -93,6 +82,7 @@ inline void EXPECT_EQ_ARRAY(std::vector<JsonValue> &expect, std::vector<JsonValu
     std::string expect_str(ARRAY_TO_STRING(expect)), actual_str(ARRAY_TO_STRING(actual));
     EXPECT_EQ_BASE((expect) == (actual), expect_str.c_str(), actual_str.c_str(), "%s");
 }
+*/
 
 inline void TEST_STRING(std::u8string_view expect, std::u8string_view json)
 {
@@ -101,7 +91,7 @@ inline void TEST_STRING(std::u8string_view expect, std::u8string_view json)
     EXPECT_EQ_INT(JSON_STRING, v.get_type());
     EXPECT_EQ_STRING(std::u8string(expect), v.get_string());
 }
-
+/*
 inline void TEST_ARRAY(std::vector<JsonValue> expect, std::u8string_view json)
 {
     JsonValue v;
@@ -109,6 +99,7 @@ inline void TEST_ARRAY(std::vector<JsonValue> expect, std::u8string_view json)
     EXPECT_EQ_INT(JSON_ARRAY, v.get_type());
     EXPECT_EQ_ARRAY(expect, v.get_array());
 }
+*/
 
 #define TEST_ERROR(error, json)                    \
     do                                             \
@@ -139,6 +130,7 @@ static void test_parse_error(){
     /* invalid string */
     TEST_ERROR(PARSE_INVALID_STRING_END, u8"\"Text");
     TEST_ERROR(PARSE_INVALID_STRING_CHAR, TEXT(u8"\t"));
+    TEST_ERROR(PARSE_ROOT_NOT_SINGULAR, u8"\"Text\" null" );
     TEST_ERROR(PARSE_INVALID_STRING_ESCAPE, TEXT(u8"\\q"));
     TEST_ERROR(PARSE_INVALID_UNICODE_HEX, TEXT(u8"\\u01Gh"));
     TEST_ERROR(PARSE_INVALID_UNICODE_SURROGATE, TEXT(u8"\\ud83d|ude00"));
@@ -192,6 +184,7 @@ static void test_parse_string() {
     //Use TEXT() marco add "" automatically
     TEST_STRING(u8"", TEXT(u8""));
     TEST_STRING(u8"Text", TEXT(u8"Text"));
+    TEST_STRING(u8"Text", u8"\"Text\"  ");       //whitespace after string
     TEST_STRING(u8"\"\"", TEXT(u8"\\\"\\\""));   //\"\" -> ""
     TEST_STRING(u8"/", TEXT(u8"\\/"));
     TEST_STRING(u8"\b", TEXT(u8"\\b"));          
@@ -207,12 +200,14 @@ static void test_parse_string() {
     TEST_STRING(u8"中\0文"sv, TEXT(u8"\\u4e2d\\u0000\\u6587")); //include '\0'
 }
 
+/*
 static void test_parse_array() {
     TEST_ARRAY(std::vector<JsonValue>{}, u8"[]");
     TEST_ARRAY(std::vector<JsonValue>{JSON_NULL, JSON_FALSE, JSON_TRUE, 1.0, u8"Text"}, u8"[null, false, true, 1.0, \"Text\"]");
     TEST_ARRAY(std::vector<JsonValue>{std::vector<JsonValue>{}, std::vector<JsonValue>{0.0}, std::vector<JsonValue>{0.0, 1.0}},
                u8"[ [ ] , [ 0 ] , [ 0 , 1 ] ]");
 }
+*/
 
 static void test_parse() {
     test_parse_error();
@@ -221,7 +216,7 @@ static void test_parse() {
     test_parse_false();
     test_parse_number();
     test_parse_string();
-    test_parse_array();
+    //test_parse_array();
 }
 
 int main() {

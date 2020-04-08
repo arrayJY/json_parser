@@ -22,7 +22,7 @@ public:
     JsonValue() : number(0.0), type(JSON_NULL), text(u8"") {}
     JsonType get_type();
     double get_number();
-    const std::u8string& get_string();
+    std::u8string& get_string();
 
     void set_type(JsonType);
     void set_number(double);

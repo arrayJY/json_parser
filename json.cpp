@@ -10,6 +10,7 @@
 #include <locale>
 #include <iomanip>
 #include <codecvt>
+#include <vector>
 
 int json_parse(JsonValue &v, std::u8string_view json)
 {
@@ -23,7 +24,10 @@ int json_parse(JsonValue &v, std::u8string_view json)
     {
         json_parse_whitespace(c);
         if(!c.json.empty())
+        {
+            v.set_type(JSON_NULL);
             ret = PARSE_ROOT_NOT_SINGULAR;
+        }
     }
     return ret;
 }
@@ -128,12 +132,17 @@ int json_parse_number(JsonContext &c, JsonValue &v)
 int json_parse_string(JsonContext &c, JsonValue &v)
 {
     //must have 2 quotations
-    if(!c.json.ends_with(u8"\""))
-        return PARSE_INVALID_STRING_END;
+    size_t end_quotation_pos = 0;
 
     std::u8string temp;
-    for (auto i = c.json.begin() + 1; i != c.json.end() - 1; i++)
+    for (auto i = c.json.begin() + 1; i != c.json.end(); i++)
     {
+        if(*i == '\"' && *(i-1) != '\\')
+        {
+            end_quotation_pos = i - c.json.begin() + 1;
+            break;
+        }
+
         if(static_cast<unsigned char>(*i) < 0x20)
             return PARSE_INVALID_STRING_CHAR;
 
@@ -220,9 +229,11 @@ int json_parse_string(JsonContext &c, JsonValue &v)
         else
             temp.push_back(*i);
     }
+    if(!end_quotation_pos)
+        return PARSE_INVALID_STRING_END;
     v.set_type(JSON_STRING);
     v.set_string(temp);
-    c.json = u8"";
+    c.json = c.json.substr(end_quotation_pos);
     return PARSE_OK;
 }
 
@@ -270,7 +281,7 @@ double JsonValue::get_number()
     return number;
 }
 
-const std::u8string& JsonValue::get_string()
+std::u8string& JsonValue::get_string()
 {
     assert(type == JSON_STRING);
     return text;
