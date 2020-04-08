@@ -169,6 +169,17 @@ static void test_parse_error(){
     /* invalid array */
     TEST_ERROR(PARSE_INVAID_ARRAY_END, u8"[1, 2");
     TEST_ERROR(PARSE_EXTRA_ARRAY_SEPARATOR, u8"[1, 2,]");
+    /* invalid object*/
+    TEST_ERROR(PARSE_INVAID_OBJECT_END,
+               u8"{\"Key\": null");
+    TEST_ERROR(PARSE_INVALID_OBJECT_KEY,
+               u8"{\"Key: null}");
+    TEST_ERROR(PARSE_INVALID_OBJECT_SEPARATOR,
+               u8"{\"Key\"| null}");
+    TEST_ERROR(PARSE_INVALID_OBJECT_VALUE,
+               u8"{\"Key\": nul}");
+    TEST_ERROR(PARSE_EXTRA_OBJECT_SEPARATOR,
+               u8"{\"Key\": null,}");
 }
 
 static void test_parse_null() {
