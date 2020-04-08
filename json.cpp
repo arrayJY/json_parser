@@ -1,16 +1,8 @@
 #include "json.hpp"
-#include <string_view>
 #include <cassert>
-#include <iostream>
-#include <locale>
-#include <codecvt>
-#include <iostream>
-#include <fstream>
-#include <string>
-#include <locale>
-#include <iomanip>
-#include <codecvt>
-#include <vector>
+#include <cstddef>
+#include <map>
+#include <string_view>
 
 int json_parse(JsonValue &v, std::u8string_view json)
 {
@@ -55,6 +47,8 @@ int json_parse_value(JsonContext& context, JsonValue &value)
             return json_parse_string(context, value);
         case u8'[':
             return json_parse_array(context, value);
+        case u8'{':
+            return json_parse_object(context, value);
         case u8'\0':
             return PARSE_EXPECT_VALUE;
         default:
@@ -132,17 +126,14 @@ int json_parse_number(JsonContext &c, JsonValue &v)
     return PARSE_OK;
 }
 
-int json_parse_string(JsonContext &c, JsonValue &v)
+int json_parse_string_raw(JsonContext &c, std::u8string &str, size_t& end_pos)
 {
-    //must have 2 quotations
-    size_t end_quotation_pos = 0;
-
-    std::u8string temp;
     for (auto i = c.json.begin() + 1; i != c.json.end(); i++)
     {
+        //Another quotation
         if(*i == '\"' && *(i-1) != '\\')
         {
-            end_quotation_pos = i - c.json.begin() + 1;
+            end_pos = i - c.json.begin() + 1;
             break;
         }
 
@@ -155,28 +146,28 @@ int json_parse_string(JsonContext &c, JsonValue &v)
             switch(*(++i))
             {
             case u8'\\':
-                temp.push_back(u8'\\');
+                str.push_back(u8'\\');
                 break;
             case u8'\"':
-                temp.push_back(u8'\"');
+                str.push_back(u8'\"');
                 break;
             case u8'/':
-                temp.push_back(u8'/');
+                str.push_back(u8'/');
                 break;
             case u8'b':
-                temp.push_back(u8'\b');
+                str.push_back(u8'\b');
                 break;
             case u8'f':
-                temp.push_back(u8'\f');
+                str.push_back(u8'\f');
                 break;
             case u8'n':
-                temp.push_back(u8'\n');
+                str.push_back(u8'\n');
                 break;
             case u8't':
-                temp.push_back(u8'\t');
+                str.push_back(u8'\t');
                 break;
             case u8'r':
-                temp.push_back(u8'\r');
+                str.push_back(u8'\r');
                 break;
             case u8'u':
             {
@@ -219,21 +210,30 @@ int json_parse_string(JsonContext &c, JsonValue &v)
 
                     codepoint = 0x10000 + (high_surrogate - 0xD800) * 0x400 + (low_surrogate - 0xDC00);
                 }
-                temp += json_encode_utf8(codepoint);
+                str += json_encode_utf8(codepoint);
                 i += 3;
                 break;
             }
             default:
-                v.set_string(u8"");
                 return PARSE_INVALID_STRING_ESCAPE;
             }
             continue;
         }
         else
-            temp.push_back(*i);
+            str.push_back(*i);
     }
-    if(!end_quotation_pos)
+    if(!end_pos)
         return PARSE_INVALID_STRING_END;
+    return PARSE_OK;
+}
+
+int json_parse_string(JsonContext &c, JsonValue &v)
+{
+    int ret = PARSE_OK;
+    size_t end_quotation_pos = 0;
+    std::u8string temp;
+    if((ret = json_parse_string_raw(c, temp, end_quotation_pos)) != PARSE_OK)
+        return ret;
     v.set_type(JSON_STRING);
     v.set_string(temp);
     c.json = c.json.substr(end_quotation_pos);
@@ -307,6 +307,57 @@ int json_parse_array(JsonContext &c, JsonValue &v)
     return ret;
 }
 
+int json_parse_object(JsonContext &c, JsonValue &v)
+{
+    //handle '{'
+    c.json = c.json.substr(1);
+    std::map<std::u8string, JsonValue> result;
+    int ret = PARSE_OK;
+    json_parse_whitespace(c);
+    while(ret == PARSE_OK && !c.json.starts_with(u8"}"))
+    {
+        if(c.json.empty())
+            return PARSE_INVAID_OBJECT_END;
+
+        std::u8string key;
+        size_t key_end_pos = 0;
+        if((ret = json_parse_string_raw(c, key, key_end_pos)) != PARSE_OK)
+            return PARSE_INVALID_OBJECT_KEY;
+        c.json = c.json.substr(key_end_pos);
+
+        json_parse_whitespace(c);
+        if(!c.json.starts_with(u8":"))
+            return PARSE_INVALID_OBJECT_SEPARATOR;
+        //handle ':'
+        c.json = c.json.substr(1);
+        json_parse_whitespace(c);
+
+        JsonValue value;
+        if((ret = json_parse_value(c, value)) != PARSE_OK)
+            return PARSE_INVALID_OBJECT_VALUE;
+
+        result.insert({key, value});
+
+        json_parse_whitespace(c);
+        //handle ','
+        if(c.json.starts_with(u8","))
+        {
+            c.json = c.json.substr(1);
+            json_parse_whitespace(c);
+            if(c.json.starts_with(u8"}"))
+                return PARSE_EXTRA_OBJECT_SEPARATOR;
+        }
+    }
+    //handle '}'
+    c.json = c.json.substr(1);
+    if (ret == PARSE_OK)
+    {
+        v.set_type(JSON_OBJECT);
+        v.set_object(result);
+    }
+    return ret;
+}
+
 JsonType JsonValue::get_type()
 {
     return type;
@@ -330,7 +381,14 @@ std::vector<JsonValue> &JsonValue::get_array()
     return array;
 }
 
+std::map<std::u8string, JsonValue> &JsonValue::get_object()
+{
+    assert(type == JSON_OBJECT);
+    return object;
+}
+
 void JsonValue::set_number(double n) { number = n; }
 void JsonValue::set_type(JsonType t) { type = t; }
 void JsonValue::set_string(const std::u8string& str) { text = str; }
 void JsonValue::set_array(const std::vector<JsonValue>& v) { array = v; }
+void JsonValue::set_object(const std::map<std::u8string, JsonValue> &o) { object = o; }
