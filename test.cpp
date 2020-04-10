@@ -1,4 +1,6 @@
 #include "json.hpp"
+#include <string>
+#include <string_view>
 
 static int main_ret = 0;
 static int test_count = 0;
@@ -270,6 +272,35 @@ static void test_parse_object() {
     TEST_OBJECT(expect, json);
 }
 
+static void test_assignment() {
+    JsonValue v, v2;
+
+    v = JSON_NULL;
+    EXPECT_EQ_INT(JSON_NULL, v.get_type());
+    v = JSON_FALSE;
+    EXPECT_EQ_INT(JSON_FALSE, v.get_type());
+    v = JSON_TRUE;
+    EXPECT_EQ_INT(JSON_TRUE, v.get_type());
+
+    v = 1.0;
+    EXPECT_EQ_DOUBLE(1.0, v.get_number());
+
+    std::u8string_view str(u8"Text");
+    v = str;
+    EXPECT_EQ_STRING(str, v.get_string());
+
+    std::vector<JsonValue> a{JSON_NULL, JSON_FALSE, 1.0, u8"Text"};
+    v = a;
+    EXPECT_EQ_ARRAY(a, v.get_array());
+
+    std::map<std::u8string, JsonValue> o{{u8"NULL", JSON_NULL}, {u8"NUMBER", 1.0}, {u8"ARRAY", a}};
+    v = o;
+    EXPECT_EQ_OBJECT(o, v.get_object());
+
+    v2 = v;
+    EXPECT_EQ_OBJECT(v2.get_object(), v.get_object());
+}
+
 static void test_parse() {
     test_parse_error();
     test_parse_null();
@@ -279,6 +310,7 @@ static void test_parse() {
     test_parse_string();
     test_parse_array();
     test_parse_object();
+    test_assignment();
 }
 
 int main() {
