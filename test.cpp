@@ -1,4 +1,5 @@
 #include "json.hpp"
+#include <map>
 #include <string>
 #include <string_view>
 
@@ -301,6 +302,23 @@ static void test_assignment() {
     EXPECT_EQ_OBJECT(v2.get_object(), v.get_object());
 }
 
+static void test_to_string() {
+    JsonValue v;
+    std::u8string_view str;
+    auto test_string = [&v, &str](JsonValue value, std::u8string_view s) {
+        v = value;
+        str = s;
+        EXPECT_EQ_STRING(str, v.to_string());
+    };
+    test_string(JSON_NULL, u8"null");
+    test_string(JSON_FALSE, u8"false");
+    test_string(JSON_TRUE, u8"true");
+    test_string(u8"Text", TEXT(u8"Text"));
+    test_string(std::vector<JsonValue>{JSON_NULL, u8"Text"}, u8"[null,\"Text\"]");
+    std::map<std::u8string, JsonValue> o{{u8"Null", JSON_NULL}, {u8"Number", 1.0}, {u8"Text", u8"Text"}};
+    test_string(o, u8"{\"Null\":null,\"Number\":1.000000,\"Text\":\"Text\"}");
+}
+
 static void test_parse() {
     test_parse_error();
     test_parse_null();
@@ -311,6 +329,7 @@ static void test_parse() {
     test_parse_array();
     test_parse_object();
     test_assignment();
+    test_to_string();
 }
 
 int main() {
