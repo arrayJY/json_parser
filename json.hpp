@@ -27,6 +27,7 @@ public:
     JsonValue(const char8_t *s): number(0.0), text(s), type(JSON_STRING) {}
     JsonValue(const std::vector<JsonValue> v) : number(0.0), array(v), type(JSON_ARRAY) {}
     JsonValue(std::map<std::u8string, JsonValue> &o) : number(0.0), object(o), type(JSON_OBJECT) {}
+    JsonValue(const JsonValue&) = default;
     bool operator==(const JsonValue& ) const = default;
 
     JsonType get_type();
@@ -40,6 +41,12 @@ public:
     void set_string(const std::u8string&);
     void set_array(const std::vector<JsonValue>&);
     void set_object(const std::map<std::u8string, JsonValue>&);
+
+    JsonValue &operator=(const JsonType);
+    JsonValue &operator=(const double);
+    JsonValue &operator=(const std::u8string_view);
+    JsonValue &operator=(const std::vector<JsonValue>&);
+    JsonValue &operator=(const std::map<std::u8string, JsonValue>&);
 
 private:
     double number;

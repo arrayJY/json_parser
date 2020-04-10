@@ -1,5 +1,6 @@
 #include "json.hpp"
 #include <cassert>
+#include <type_traits>
 
 int json_parse(JsonValue &v, std::u8string_view json)
 {
@@ -383,6 +384,57 @@ std::map<std::u8string, JsonValue> &JsonValue::get_object()
     assert(type == JSON_OBJECT);
     return object;
 }
+
+JsonValue &JsonValue::operator=(const double v){
+    type = JSON_NUMBER;
+    number = v;
+
+    text.clear();
+    array.clear();
+    object.clear();
+    return *this;
+}
+JsonValue &JsonValue::operator=(const JsonType t) {
+    type = t;
+
+    number = 0.0;
+    text.clear();
+    array.clear();
+    object.clear();
+    return *this;
+}
+
+JsonValue &JsonValue::operator=(const std::u8string_view str)
+{
+    type = JSON_STRING;
+    text = str;
+
+    number = 0.0;
+    array.clear();
+    object.clear();
+    return *this;
+}
+JsonValue &JsonValue::operator=(const std::vector<JsonValue> &a)
+{
+    type = JSON_ARRAY;
+    array = a;
+
+    number = 0.0;
+    text.clear();
+    object.clear();
+    return *this;
+}
+JsonValue &JsonValue::operator=(const std::map<std::u8string, JsonValue> &o)
+{
+    type = JSON_OBJECT;
+    object = o;
+
+    number = 0.0;
+    text.clear();
+    array.clear();
+    return *this;
+}
+
 
 void JsonValue::set_number(double n) { number = n; }
 void JsonValue::set_type(JsonType t) { type = t; }
