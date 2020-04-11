@@ -531,7 +531,8 @@ void JsonValue::set_string(const std::u8string& str) { text = str; }
 void JsonValue::set_array(const std::vector<JsonValue>& v) { array = v; }
 void JsonValue::set_object(const std::map<std::u8string, JsonValue> &o) { object = o; }
 
-
+// Copyright (c) 2008-2009 Bjoern Hoehrmann <bjoern@hoehrmann.de>
+// See http://bjoern.hoehrmann.de/utf-8/decoder/dfa/ for details.
 int inline decode_utf8(int *state, int *codep, int byte)
 {
     const int UTF8_ACCEPT = 0;
