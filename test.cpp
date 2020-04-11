@@ -314,6 +314,9 @@ static void test_to_string() {
     test_string(JSON_FALSE, u8"false");
     test_string(JSON_TRUE, u8"true");
     test_string(u8"Text", TEXT(u8"Text"));
+    test_string(u8"😀", TEXT(u8"\\ud83d\\ude00"));
+    test_string(u8"中文", TEXT(u8"\\u4e2d\\u6587"));
+    test_string(u8"€", TEXT(u8"\\u20ac"));
     test_string(std::vector<JsonValue>{JSON_NULL, u8"Text"}, u8"[null,\"Text\"]");
     std::map<std::u8string, JsonValue> o{{u8"Null", JSON_NULL}, {u8"Number", 1.0}, {u8"Text", u8"Text"}};
     test_string(o, u8"{\"Null\":null,\"Number\":1.000000,\"Text\":\"Text\"}");
