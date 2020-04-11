@@ -1,6 +1,8 @@
 #include "json.hpp"
 #include <cassert>
-#include <type_traits>
+#include <charconv>
+#include <string>
+#include <string_view>
 
 int json_parse(JsonValue &v, std::u8string_view json)
 {
@@ -435,9 +437,142 @@ JsonValue &JsonValue::operator=(const std::map<std::u8string, JsonValue> &o)
     return *this;
 }
 
+int inline decode_utf8(int *state, int *codep, int byte);
+std::u8string codepoint_to_string(int codepoint);
+std::u8string JsonValue::to_string()
+{
+    std::u8string str;
+    switch (type)
+    {
+    case JSON_NULL:
+        return u8"null";
+    case JSON_FALSE:
+        return u8"false";
+    case JSON_TRUE:
+        return u8"true";
+    case JSON_NUMBER:
+    {
+        std::string temp = std::to_string(number);
+        return std::u8string(temp.begin(), temp.end());
+    }
+    case JSON_STRING:
+    {
+        str.push_back(u8'\"');
+        int codepoint = 0, state = 0;
+        for (auto s = text.begin(); s != text.end(); ++s)
+        {
+            if(decode_utf8(&state, &codepoint, *s))
+                continue;
+            switch(codepoint)
+            {
+            case u8'\\':
+                str += u8"\\\\";
+                break;
+            case u8'/':
+                str += u8"\\/";
+                break;
+            case u8'\"':
+                str += u8"\\\"";
+                break;
+            case u8'\n':
+                str += u8"\\n";
+                break;
+            case u8'\b':
+                str += u8"\\b";
+                break;
+            case u8'\f':
+                str += u8"\\f";
+                break;
+            case u8'\t':
+                str += u8"\\t";
+                break;
+            case u8'\r':
+                str += u8"\\r";
+                break;
+            default:
+                if(codepoint > 0x20 && codepoint < 0x7F)
+                    str.push_back(static_cast<char8_t>(codepoint));
+                else
+                    str += codepoint_to_string(codepoint);
+            }
+        }
+        str.push_back(u8'\"');
+        break;
+    }
+    case JSON_ARRAY:
+        str.push_back(u8'[');
+        for(auto &i: array)
+        {
+            str += i.to_string();
+            str.push_back(u8',');
+        }
+        str.pop_back();
+        str.push_back(u8']');
+        break;
+    case JSON_OBJECT:
+        str.push_back(u8'{');
+        for(auto &i: object)
+        {
+            str += u8"\"" + i.first + u8"\"";
+            str.push_back(u8':');
+            str += i.second.to_string();
+            str.push_back(u8',');
+        }
+        str.pop_back();
+        str.push_back(u8'}');
+        break;
+    }
+    return str;
+}
 
 void JsonValue::set_number(double n) { number = n; }
 void JsonValue::set_type(JsonType t) { type = t; }
 void JsonValue::set_string(const std::u8string& str) { text = str; }
 void JsonValue::set_array(const std::vector<JsonValue>& v) { array = v; }
 void JsonValue::set_object(const std::map<std::u8string, JsonValue> &o) { object = o; }
+
+
+int inline decode_utf8(int *state, int *codep, int byte)
+{
+    const int UTF8_ACCEPT = 0;
+    static const char8_t utf8d[] = {
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 00..1f
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 20..3f
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 40..5f
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 60..7f
+    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9, // 80..9f
+    7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7, // a0..bf
+    8,8,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2, // c0..df
+    0xa,0x3,0x3,0x3,0x3,0x3,0x3,0x3,0x3,0x3,0x3,0x3,0x3,0x4,0x3,0x3, // e0..ef
+    0xb,0x6,0x6,0x6,0x5,0x8,0x8,0x8,0x8,0x8,0x8,0x8,0x8,0x8,0x8,0x8, // f0..ff
+    0x0,0x1,0x2,0x3,0x5,0x8,0x7,0x1,0x1,0x1,0x4,0x6,0x1,0x1,0x1,0x1, // s0..s0
+    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,1,1,1,0,1,0,1,1,1,1,1,1, // s1..s2
+    1,2,1,1,1,1,1,2,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1, // s3..s4
+    1,2,1,1,1,1,1,1,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,3,1,3,1,1,1,1,1,1, // s5..s6
+    1,3,1,1,1,1,1,3,1,3,1,1,1,1,1,1,1,3,1,1,1,1,1,1,1,1,1,1,1,1,1,1, // s7..s8
+    };
+
+    int type = utf8d[byte];
+
+    *codep = (*state != UTF8_ACCEPT) ?
+        (byte & 0x3fu) | (*codep << 6) :
+        (0xff >> type) & (byte);
+
+    *state = utf8d[256 + *state*16 + type];
+    return *state;
+}
+std::u8string codepoint_to_string(int codepoint)
+{
+    std::u8string next;
+    char str[4];
+    if(codepoint > 0xFFFF)
+    {
+        int h = 0xD800 + ((codepoint - 0x10000) >> 10);
+        int l = 0xDC00 + ((codepoint - 0x10000) & 0x3F);
+        std::to_chars(str, str + 4, l, 16);
+        next = u8"\\u" + std::u8string(str, str + 4);
+        codepoint = h;
+    }
+    std::to_chars(str, str + 4, codepoint, 16);
+    return u8"\\u" + std::u8string(str, str + 4) + next; 
+}

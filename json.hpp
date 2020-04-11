@@ -48,6 +48,8 @@ public:
     JsonValue &operator=(const std::vector<JsonValue>&);
     JsonValue &operator=(const std::map<std::u8string, JsonValue>&);
 
+    std::u8string to_string();
+
 private:
     double number;
     std::u8string text;
