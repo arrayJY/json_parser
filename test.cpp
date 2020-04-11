@@ -2,6 +2,7 @@
 #include <map>
 #include <string>
 #include <string_view>
+using namespace Json;
 
 static int main_ret = 0;
 static int test_count = 0;
@@ -287,7 +288,7 @@ static void test_assignment() {
     EXPECT_EQ_DOUBLE(1.0, v.get_number());
 
     std::u8string_view str(u8"Text");
-    v = str;
+    v = u8"Text";
     EXPECT_EQ_STRING(str, v.get_string());
 
     std::vector<JsonValue> a{JSON_NULL, JSON_FALSE, 1.0, u8"Text"};
