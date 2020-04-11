@@ -568,7 +568,7 @@ std::u8string codepoint_to_string(int codepoint)
     if(codepoint > 0xFFFF)
     {
         int h = 0xD800 + ((codepoint - 0x10000) >> 10);
-        int l = 0xDC00 + ((codepoint - 0x10000) & 0x3F);
+        int l = 0xDC00 + ((codepoint - 0x10000) & 0x3FF);
         std::to_chars(str, str + 4, l, 16);
         next = u8"\\u" + std::u8string(str, str + 4);
         codepoint = h;
